@@ -1,0 +1,161 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { revalidatePath } from "next/cache";
+
+async function assertSuperadmin() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not signed in.");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "superadmin") throw new Error("Superadmin only.");
+}
+
+export async function createSchool(formData: FormData) {
+  await assertSuperadmin();
+
+  const schoolName = String(formData.get("schoolName") || "").trim();
+  const address = String(formData.get("address") || "").trim();
+  const adminName = String(formData.get("adminName") || "").trim();
+  const adminEmail = String(formData.get("adminEmail") || "").trim();
+  const adminPassword = String(formData.get("adminPassword") || "");
+
+  if (!schoolName || !adminName || !adminEmail || adminPassword.length < 8) {
+    throw new Error(
+      "School name, admin name, admin email, and an 8+ character password are all required."
+    );
+  }
+
+  const admin = createAdminClient();
+
+  // 1. Create the school
+  const { data: school, error: schoolError } = await admin
+    .from("schools")
+    .insert({ name: schoolName, address })
+    .select()
+    .single();
+  if (schoolError || !school) {
+    throw new Error(schoolError?.message ?? "Failed to create school.");
+  }
+
+  // 2. Create the auth login for that school's admin
+  const { data: authUser, error: authError } =
+    await admin.auth.admin.createUser({
+      email: adminEmail,
+      password: adminPassword,
+      email_confirm: true,
+    });
+  if (authError || !authUser.user) {
+    // roll back the school row so we don't leave an orphaned school
+    await admin.from("schools").delete().eq("id", school.id);
+    throw new Error(authError?.message ?? "Failed to create admin login.");
+  }
+
+  // 3. Link that login to this school as a school_admin profile
+  const { error: profileError } = await admin.from("profiles").insert({
+    id: authUser.user.id,
+    role: "school_admin",
+    school_id: school.id,
+    full_name: adminName,
+  });
+  if (profileError) {
+    await admin.auth.admin.deleteUser(authUser.user.id);
+    await admin.from("schools").delete().eq("id", school.id);
+    throw new Error(profileError.message);
+  }
+
+  revalidatePath("/superadmin/schools");
+}
+
+export async function updateSchool(schoolId: string, formData: FormData) {
+  await assertSuperadmin();
+  const admin = createAdminClient();
+
+  const schoolName = String(formData.get("schoolName") || "").trim();
+  const address = String(formData.get("address") || "").trim();
+  if (!schoolName) throw new Error("School name is required.");
+
+  const { error } = await admin
+    .from("schools")
+    .update({ name: schoolName, address })
+    .eq("id", schoolId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/superadmin/schools");
+}
+
+export async function updateSchoolAdmin(
+  adminUserId: string,
+  formData: FormData
+) {
+  await assertSuperadmin();
+  const admin = createAdminClient();
+
+  const { data: target } = await admin
+    .from("profiles")
+    .select("id, role")
+    .eq("id", adminUserId)
+    .single();
+  if (!target || target.role !== "school_admin") {
+    throw new Error("School Admin login not found.");
+  }
+
+  const fullName = String(formData.get("adminName") || "").trim();
+  const newEmail = String(formData.get("newAdminEmail") || "").trim();
+  const newPassword = String(formData.get("newAdminPassword") || "");
+
+  if (!fullName) throw new Error("Admin name is required.");
+  if (newPassword && newPassword.length < 8) {
+    throw new Error("New password must be at least 8 characters.");
+  }
+
+  if (newEmail || newPassword) {
+    const { error: authError } = await admin.auth.admin.updateUserById(
+      adminUserId,
+      {
+        ...(newEmail ? { email: newEmail } : {}),
+        ...(newPassword ? { password: newPassword } : {}),
+      }
+    );
+    if (authError) throw new Error(authError.message);
+  }
+
+  const { error } = await admin
+    .from("profiles")
+    .update({ full_name: fullName })
+    .eq("id", adminUserId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/superadmin/schools");
+}
+
+export async function deleteSchool(schoolId: string) {
+  await assertSuperadmin();
+  const admin = createAdminClient();
+
+  // Grab every login tied to this school so we can remove the auth users too
+  // (deleting the school cascades the profile rows, but not the auth.users
+  // records themselves).
+  const { data: relatedProfiles } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("school_id", schoolId);
+
+  const { error } = await admin.from("schools").delete().eq("id", schoolId);
+  if (error) throw new Error(error.message);
+
+  for (const p of relatedProfiles ?? []) {
+    await admin.auth.admin.deleteUser(p.id as string);
+  }
+
+  revalidatePath("/superadmin/schools");
+}

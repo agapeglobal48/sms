@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# School SMS — Pakistan Government Schools
 
-## Getting Started
+Multi-tenant School Management System with an integrated Asset Management
+System (AMS), built for Pakistani government schools.
 
-First, run the development server:
+## Roles
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+| Role          | Scope                                                              |
+|---------------|---------------------------------------------------------------------|
+| Superadmin    | All schools. Creates/deletes schools, provisions School Admins, views all data, manages funding to schools. |
+| School Admin  | One school. Manages teachers, classes, students, fees, AMS assets, bills against funding. |
+| Teacher       | Assigned classes. Attendance, marks, homework, result card export. |
+| Parent        | Their linked children only. Read-only: attendance, marks, homework, fee status. |
+
+## Tech stack
+
+- Next.js (App Router) + TypeScript
+- Tailwind CSS
+- Supabase (Postgres + Auth + Row Level Security + Storage)
+
+## Project structure
+
+```
+src/
+  app/
+    (auth)/login/          # public login page
+    (superadmin)/superadmin/
+      schools/              # create/delete schools, provision school admins
+      funding/              # allocate funding to schools
+    (school-admin)/admin/
+      classes/
+      teachers/
+      students/
+      fees/
+    (teacher)/teacher/
+      attendance/
+      marks/
+      homework/
+    (parent)/parent/        # read-only dashboard
+    ams/
+      assets/                # asset registry (serial keys, categories, assignment)
+      funding-bills/         # bills uploaded against superadmin funding
+  lib/
+    supabase/
+      client.ts              # browser Supabase client
+      server.ts               # server Supabase client (Server Components/Actions)
+    types/
+      database.ts             # placeholder — replace with generated DB types in Phase 1
+  middleware.ts               # session refresh + coarse route protection
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Route groups (parentheses) keep each role's pages organized without affecting
+the URL — e.g. `(school-admin)/admin/classes` still serves at `/admin/classes`.
+`ams/` is a standalone section reachable from a top-nav button for Superadmin
+and School Admin, per the spec.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Create a Supabase project at https://supabase.com
+3. Copy `.env.example` to `.env.local` and fill in your project's URL and keys:
+   ```bash
+   cp .env.example .env.local
+   ```
+4. Run the dev server:
+   ```bash
+   npm run dev
+   ```
 
-## Learn More
+No database schema exists yet — that's Phase 1.
 
-To learn more about Next.js, take a look at the following resources:
+## Roadmap
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [x] **Phase 0** — Project scaffolding (this)
+- [ ] **Phase 1** — Auth & multi-tenancy (schools, profiles/roles, RLS policies)
+- [ ] **Phase 2** — School Admin core: classes, teachers, students, fees, Excel import/export
+- [ ] **Phase 3** — Teacher module: attendance, marks, homework, result card export
+- [ ] **Phase 4** — Parent portal (read-only)
+- [ ] **Phase 5** — AMS: asset registry with serial keys, categories, classroom/user assignment
+- [ ] **Phase 6** — Funding & bills: superadmin funding allocation, school admin bill uploads
+- [ ] **Phase 7** — Superadmin analytics, reporting, polish
