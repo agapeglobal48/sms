@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "@/lib/audit";
+import { validatePassword } from "@/lib/password";
+import { uploadSchoolLogoIfProvided } from "@/lib/schoolLogo";
 
 async function assertSuperadmin() {
   const supabase = await createClient();
@@ -32,11 +34,11 @@ export async function createSchool(formData: FormData) {
   const adminEmail = String(formData.get("adminEmail") || "").trim();
   const adminPassword = String(formData.get("adminPassword") || "");
 
-  if (!schoolName || !adminName || !adminEmail || adminPassword.length < 8) {
-    throw new Error(
-      "School name, admin name, admin email, and an 8+ character password are all required."
-    );
+  if (!schoolName || !adminName || !adminEmail || !adminPassword) {
+    throw new Error("School name, admin name, admin email, and a password are all required.");
   }
+  const passwordError = validatePassword(adminPassword);
+  if (passwordError) throw new Error(passwordError);
 
   const admin = createAdminClient();
 
@@ -76,6 +78,12 @@ export async function createSchool(formData: FormData) {
     throw new Error(profileError.message);
   }
 
+  // 4. Optional logo/monogram
+  const logoUrl = await uploadSchoolLogoIfProvided(admin, formData, school.id);
+  if (logoUrl) {
+    await admin.from("schools").update({ logo_url: logoUrl }).eq("id", school.id);
+  }
+
   await logAudit({
     actorId: userId,
     actorName: userName,
@@ -98,10 +106,16 @@ export async function updateSchool(schoolId: string, formData: FormData) {
   const address = String(formData.get("address") || "").trim();
   if (!schoolName) throw new Error("School name is required.");
 
-  const { error } = await admin
-    .from("schools")
-    .update({ name: schoolName, address })
-    .eq("id", schoolId);
+  const removeLogo = formData.get("removeLogo") === "on";
+  const logoUrl = await uploadSchoolLogoIfProvided(admin, formData, schoolId);
+
+  const updateFields = {
+    name: schoolName,
+    address,
+    ...(logoUrl ? { logo_url: logoUrl } : removeLogo ? { logo_url: null } : {}),
+  };
+
+  const { error } = await admin.from("schools").update(updateFields).eq("id", schoolId);
   if (error) throw new Error(error.message);
 
   await logAudit({
@@ -139,8 +153,9 @@ export async function updateSchoolAdmin(
   const newPassword = String(formData.get("newAdminPassword") || "");
 
   if (!fullName) throw new Error("Admin name is required.");
-  if (newPassword && newPassword.length < 8) {
-    throw new Error("New password must be at least 8 characters.");
+  if (newPassword) {
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) throw new Error(passwordError);
   }
 
   if (newEmail || newPassword) {
@@ -226,8 +241,9 @@ export async function resetSchoolAdminCredentials(
   const newPassword = String(formData.get("newPassword") || "");
 
   if (!newEmail && !newPassword) return; // nothing to change
-  if (newPassword && newPassword.length < 8) {
-    throw new Error("New password must be at least 8 characters.");
+  if (newPassword) {
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) throw new Error(passwordError);
   }
 
   const { error } = await admin.auth.admin.updateUserById(adminUserId, {

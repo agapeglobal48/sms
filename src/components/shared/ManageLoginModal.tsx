@@ -101,7 +101,8 @@ export default function ManageLoginModal({
               className="w-full rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-brand-light focus:ring-2 focus:ring-brand-light/15"
             />
             <p className="text-xs text-muted mt-1">
-              Leave blank to keep unchanged. At least 8 characters if changing.
+              Leave blank to keep unchanged. At least 8 characters, with a letter and a
+              number, if changing.
             </p>
           </div>
           <button

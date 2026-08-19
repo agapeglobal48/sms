@@ -57,7 +57,7 @@ export default async function AssetsPage({
   const { data: assets } = await supabase
     .from("assets")
     .select(
-      "id, category, name, serial_key, os, classroom, assigned_users, quantity, publisher, notes, deletion_requested, purchase_date, allocation_date, image_url"
+      "id, category, name, serial_key, os, classroom, assigned_users, quantity, publisher, supplier, notes, deletion_requested, purchase_date, allocation_date, image_url"
     )
     .eq("school_id", schoolId)
     .order("category", { ascending: true });

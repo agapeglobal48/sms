@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import PrintButton from "@/components/shared/PrintButton";
+import PrintHeader from "@/components/shared/PrintHeader";
 import { computeWeightedTotal, type Component } from "@/lib/marks";
 
 type Student = { id: string; name: string; roll_no: number | null };
@@ -11,6 +12,9 @@ export default function CumulativeResultClient({
   classId,
   subject,
   className,
+  schoolName,
+  schoolAddress,
+  schoolLogoUrl,
   components,
   students,
   scoresByKey,
@@ -18,6 +22,9 @@ export default function CumulativeResultClient({
   classId: string;
   subject: string;
   className: string;
+  schoolName: string;
+  schoolAddress: string | null;
+  schoolLogoUrl: string | null;
   components: Component[];
   students: Student[];
   scoresByKey: Record<string, number | null>;
@@ -42,6 +49,7 @@ export default function CumulativeResultClient({
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <PrintHeader schoolName={schoolName} address={schoolAddress} logoUrl={schoolLogoUrl} />
       <div className="flex items-center justify-between print:hidden">
         <Link
           href={`/teacher/marks?classId=${classId}&subject=${encodeURIComponent(subject)}`}

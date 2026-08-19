@@ -74,6 +74,7 @@ function assetFieldsFrom(formData: FormData, schoolId: string) {
     notes: String(formData.get("notes") || "").trim() || null,
     purchase_date: String(formData.get("purchaseDate") || "") || null,
     allocation_date: String(formData.get("allocationDate") || "") || null,
+    supplier: String(formData.get("supplier") || "").trim() || null,
   };
 }
 

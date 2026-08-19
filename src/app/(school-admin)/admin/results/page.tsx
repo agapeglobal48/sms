@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import PrintButton from "@/components/shared/PrintButton";
+import PrintHeader from "@/components/shared/PrintHeader";
 import ResultsFilters from "./ResultsFilters";
 import { computeWeightedTotal } from "@/lib/marks";
 
@@ -29,6 +30,12 @@ export default async function AdminResultsPage({
     .select("id, name")
     .eq("school_id", schoolId)
     .order("grade", { ascending: true });
+
+  const { data: school } = await supabase
+    .from("schools")
+    .select("name, address, logo_url")
+    .eq("id", schoolId)
+    .single();
 
   if (!classes || classes.length === 0) {
     return (
@@ -111,6 +118,7 @@ export default async function AdminResultsPage({
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <PrintHeader schoolName={school?.name ?? ""} address={school?.address} logoUrl={school?.logo_url} />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-semibold text-ink">Results</h1>
         <div className="flex items-center gap-3 print:hidden">

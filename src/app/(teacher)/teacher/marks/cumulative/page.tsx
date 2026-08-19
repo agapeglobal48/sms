@@ -19,7 +19,7 @@ export default async function CumulativeResultPage({
   const supabase = await createClient();
 
   const [{ data: klass }, { data: components }, { data: students }] = await Promise.all([
-    supabase.from("classes").select("name").eq("id", classId).single(),
+    supabase.from("classes").select("name, school_id").eq("id", classId).single(),
     supabase
       .from("assessment_components")
       .select("id, name, weight, included, sort_order")
@@ -32,6 +32,10 @@ export default async function CumulativeResultPage({
       .eq("class_id", classId)
       .order("roll_no", { ascending: true }),
   ]);
+
+  const { data: school } = klass?.school_id
+    ? await supabase.from("schools").select("name, address, logo_url").eq("id", klass.school_id).single()
+    : { data: null };
 
   const studentIds = (students ?? []).map((s) => s.id);
   const componentIds = (components ?? []).map((c) => c.id);
@@ -53,6 +57,9 @@ export default async function CumulativeResultPage({
       classId={classId}
       subject={subject}
       className={klass?.name ?? ""}
+      schoolName={school?.name ?? ""}
+      schoolAddress={school?.address ?? null}
+      schoolLogoUrl={school?.logo_url ?? null}
       components={components ?? []}
       students={students ?? []}
       scoresByKey={scoresByKey}

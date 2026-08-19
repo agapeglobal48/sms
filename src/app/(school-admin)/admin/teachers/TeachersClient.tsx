@@ -101,7 +101,7 @@ export default function TeachersClient({ teachers }: { teachers: Teacher[] }) {
               type="password"
               required
               minLength={8}
-              helper="At least 8 characters"
+              helper="At least 8 characters, with a letter and a number"
             />
           </div>
           <button

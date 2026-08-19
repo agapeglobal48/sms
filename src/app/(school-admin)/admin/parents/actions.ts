@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { validatePassword } from "@/lib/password";
 
 async function requireSchoolAdmin() {
   const supabase = await createClient();
@@ -47,11 +48,11 @@ export async function createParent(formData: FormData) {
   const phone = String(formData.get("phone") || "").trim() || null;
   const studentIds = formData.getAll("studentIds").map(String);
 
-  if (!fullName || !email || password.length < 8) {
-    throw new Error(
-      "Name, email, and an 8+ character password are all required."
-    );
+  if (!fullName || !email || !password) {
+    throw new Error("Name, email, and a password are all required.");
   }
+  const passwordError = validatePassword(password);
+  if (passwordError) throw new Error(passwordError);
 
   const admin = createAdminClient();
   const validStudentIds = await validateStudentIdsBelongToSchool(
@@ -115,8 +116,9 @@ export async function updateParent(parentId: string, formData: FormData) {
   const newPassword = String(formData.get("newPassword") || "");
 
   if (!fullName) throw new Error("Name is required.");
-  if (newPassword && newPassword.length < 8) {
-    throw new Error("New password must be at least 8 characters.");
+  if (newPassword) {
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) throw new Error(passwordError);
   }
 
   if (newEmail || newPassword) {

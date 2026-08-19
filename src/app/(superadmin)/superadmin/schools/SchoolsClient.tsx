@@ -16,6 +16,7 @@ type School = {
   id: string;
   name: string;
   address: string | null;
+  logo_url: string | null;
   created_at: string;
   adminId: string | null;
   adminName: string | null;
@@ -105,6 +106,13 @@ export default function SchoolsClient({ schools }: { schools: School[] }) {
             <Field label="Address" name="address" />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-ink mb-1">
+              School logo / monogram (optional)
+            </label>
+            <input name="logo" type="file" accept="image/*" className="text-sm text-ink" />
+          </div>
+
           <hr className="border-line" />
           <p className="text-sm text-muted">
             This creates the login the School Admin will use to sign in.
@@ -119,7 +127,7 @@ export default function SchoolsClient({ schools }: { schools: School[] }) {
               type="password"
               required
               minLength={8}
-              helper="At least 8 characters"
+              helper="At least 8 characters, with a letter and a number"
             />
           </div>
 
@@ -141,12 +149,26 @@ export default function SchoolsClient({ schools }: { schools: School[] }) {
         )}
         {schools.map((s) => (
           <div key={s.id} className="flex items-center justify-between p-4 flex-wrap gap-2">
-            <div>
-              <p className="font-medium text-ink">{s.name}</p>
-              {s.address && <p className="text-sm text-muted">{s.address}</p>}
-              {s.adminName && (
-                <p className="text-xs text-muted">Admin: {s.adminName}</p>
+            <div className="flex items-center gap-3">
+              {s.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={s.logo_url}
+                  alt={s.name}
+                  className="w-9 h-9 rounded-lg object-cover border border-line shrink-0"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-lg bg-brand flex items-center justify-center text-white font-heading font-bold text-sm shrink-0">
+                  {s.name?.[0]?.toUpperCase() ?? "S"}
+                </div>
               )}
+              <div>
+                <p className="font-medium text-ink">{s.name}</p>
+                {s.address && <p className="text-sm text-muted">{s.address}</p>}
+                {s.adminName && (
+                  <p className="text-xs text-muted">Admin: {s.adminName}</p>
+                )}
+              </div>
             </div>
             <div className="flex gap-4 flex-wrap">
               <Link
@@ -207,6 +229,37 @@ export default function SchoolsClient({ schools }: { schools: School[] }) {
                         name="address"
                         defaultValue={school.address ?? ""}
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-ink mb-1">
+                        School logo / monogram
+                      </label>
+                      <div className="flex items-center gap-3">
+                        {school.logo_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={school.logo_url}
+                            alt={school.name}
+                            className="w-12 h-12 rounded-lg object-cover border border-line"
+                          />
+                        )}
+                        <input
+                          name="logo"
+                          type="file"
+                          accept="image/*"
+                          className="text-sm text-ink flex-1"
+                        />
+                      </div>
+                      {school.logo_url && (
+                        <label className="flex items-center gap-2 text-sm text-muted mt-2">
+                          <input
+                            type="checkbox"
+                            name="removeLogo"
+                            className="rounded border-line"
+                          />
+                          Remove current logo
+                        </label>
+                      )}
                     </div>
                     <button
                       type="submit"

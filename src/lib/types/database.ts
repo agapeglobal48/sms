@@ -18,12 +18,14 @@ export interface Database {
           id: string;
           name: string;
           address: string | null;
+          logo_url: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           name: string;
           address?: string | null;
+          logo_url?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["schools"]["Insert"]>;
@@ -300,6 +302,7 @@ export interface Database {
           image_url: string | null;
           purchase_date: string | null;
           allocation_date: string | null;
+          supplier: string | null;
         };
         Insert: {
           id?: string;
@@ -321,6 +324,7 @@ export interface Database {
           image_url?: string | null;
           purchase_date?: string | null;
           allocation_date?: string | null;
+          supplier?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["assets"]["Insert"]>;
         Relationships: [];

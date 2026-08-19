@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import PrintButton from "@/components/shared/PrintButton";
+import PrintHeader from "@/components/shared/PrintHeader";
 import { computeWeightedTotal } from "@/lib/marks";
 
 export default async function StudentRecordPage({
@@ -33,6 +34,12 @@ export default async function StudentRecordPage({
   if (!student || student.school_id !== profile?.school_id) {
     notFound();
   }
+
+  const { data: school } = await supabase
+    .from("schools")
+    .select("name, address, logo_url")
+    .eq("id", student.school_id)
+    .single();
 
   const [{ data: classInfo }, { data: attendance }, { data: components }, { data: fees }] =
     await Promise.all([
@@ -90,6 +97,7 @@ export default async function StudentRecordPage({
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
+      <PrintHeader schoolName={school?.name ?? ""} address={school?.address} logoUrl={school?.logo_url} />
       <div className="flex items-center justify-between print:hidden">
         <Link href="/admin/students" className="text-sm text-brand-light hover:text-brand">
           ← Back to Students

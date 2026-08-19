@@ -23,6 +23,7 @@ type Asset = {
   assigned_users: string[] | null;
   quantity: number;
   publisher: string | null;
+  supplier: string | null;
   notes: string | null;
   deletion_requested: boolean;
   purchase_date: string | null;
@@ -421,6 +422,12 @@ function AssetForm({
           label="Publisher (for books)"
           name="publisher"
           defaultValue={asset?.publisher ?? ""}
+        />
+        <Field
+          label="Supplier (optional)"
+          name="supplier"
+          defaultValue={asset?.supplier ?? ""}
+          placeholder="e.g. ABC Hardware Traders"
         />
         <Field
           label="Date of purchase"

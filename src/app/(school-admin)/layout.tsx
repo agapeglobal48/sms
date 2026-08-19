@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/admin/parents", label: "Parents", icon: "userCheck" as const },
   { href: "/admin/fees", label: "Fees", icon: "wallet" as const },
   { href: "/admin/results", label: "Results", icon: "award" as const },
+  { href: "/admin/school", label: "School Profile", icon: "school" as const },
   { href: "/ams/assets", label: "Go to AMS", icon: "package" as const },
 ];
 

@@ -7,7 +7,7 @@ export default async function SchoolsPage() {
   const [{ data: schools }, { data: admins }] = await Promise.all([
     supabase
       .from("schools")
-      .select("id, name, address, created_at")
+      .select("id, name, address, logo_url, created_at")
       .order("created_at", { ascending: false }),
     supabase
       .from("profiles")

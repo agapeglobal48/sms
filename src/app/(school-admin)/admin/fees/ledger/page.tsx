@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import PrintButton from "@/components/shared/PrintButton";
+import PrintHeader from "@/components/shared/PrintHeader";
 
 function lastTwelveMonths(): string[] {
   const months: string[] = [];
@@ -26,7 +27,7 @@ export default async function FeesLedgerPage() {
 
   const months = lastTwelveMonths();
 
-  const [{ data: students }, { data: fees }] = await Promise.all([
+  const [{ data: students }, { data: fees }, { data: school }] = await Promise.all([
     supabase
       .from("students")
       .select("id, monthly_fee")
@@ -36,6 +37,7 @@ export default async function FeesLedgerPage() {
       .select("month, status, student_id")
       .eq("school_id", schoolId)
       .in("month", months),
+    supabase.from("schools").select("name, address, logo_url").eq("id", schoolId).single(),
   ]);
 
   const totalStudents = (students ?? []).length;
@@ -61,6 +63,7 @@ export default async function FeesLedgerPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
+      <PrintHeader schoolName={school?.name ?? ""} address={school?.address} logoUrl={school?.logo_url} />
       <div className="flex items-center justify-between print:hidden">
         <Link href="/admin/fees" className="text-sm text-brand-light hover:text-brand">
           ← Back to Fees

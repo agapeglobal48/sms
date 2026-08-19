@@ -28,24 +28,26 @@ export default async function FeesPage({
 
   const schoolId = profile?.school_id;
 
-  const [{ data: students }, { data: fees }, { data: classes }] = await Promise.all([
-    supabase
-      .from("students")
-      .select("id, name, roll_no, monthly_fee, class_id")
-      .eq("school_id", schoolId!)
-      .order("name", { ascending: true }),
-    supabase
-      .from("fees")
-      .select("student_id, status")
-      .eq("school_id", schoolId!)
-      .eq("month", month),
-    supabase
-      .from("classes")
-      .select("id, name, grade, section")
-      .eq("school_id", schoolId!)
-      .order("grade", { ascending: true })
-      .order("section", { ascending: true }),
-  ]);
+  const [{ data: students }, { data: fees }, { data: classes }, { data: school }] =
+    await Promise.all([
+      supabase
+        .from("students")
+        .select("id, name, roll_no, monthly_fee, class_id")
+        .eq("school_id", schoolId!)
+        .order("name", { ascending: true }),
+      supabase
+        .from("fees")
+        .select("student_id, status")
+        .eq("school_id", schoolId!)
+        .eq("month", month),
+      supabase
+        .from("classes")
+        .select("id, name, grade, section")
+        .eq("school_id", schoolId!)
+        .order("grade", { ascending: true })
+        .order("section", { ascending: true }),
+      supabase.from("schools").select("name, address, logo_url").eq("id", schoolId!).single(),
+    ]);
 
   const feeByStudent = new Map(
     (fees ?? []).map((f) => [f.student_id, f.status])
@@ -67,7 +69,14 @@ export default async function FeesPage({
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <FeesClient month={month} students={sortedStudents} classes={classes ?? []} />
+      <FeesClient
+        month={month}
+        students={sortedStudents}
+        classes={classes ?? []}
+        schoolName={school?.name ?? ""}
+        schoolAddress={school?.address ?? null}
+        schoolLogoUrl={school?.logo_url ?? null}
+      />
     </div>
   );
 }

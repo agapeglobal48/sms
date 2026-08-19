@@ -113,7 +113,7 @@ export default function ParentsClient({
               name="password"
               type="password"
               minLength={8}
-              helper="At least 8 characters"
+              helper="At least 8 characters, with a letter and a number"
               required
             />
             <Field label="Phone" name="phone" />
@@ -214,7 +214,7 @@ export default function ParentsClient({
                 name="newPassword"
                 type="password"
                 minLength={8}
-                helper="At least 8 characters if changing"
+                helper="At least 8 characters, with a letter and a number, if changing"
               />
             </div>
             <button

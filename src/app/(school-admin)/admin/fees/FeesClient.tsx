@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { setFeeStatus } from "./actions";
 import PrintButton from "@/components/shared/PrintButton";
+import PrintHeader from "@/components/shared/PrintHeader";
 
 type ClassOption = { id: string; name: string };
 type StudentFee = {
@@ -20,10 +21,16 @@ export default function FeesClient({
   month,
   students,
   classes,
+  schoolName,
+  schoolAddress,
+  schoolLogoUrl,
 }: {
   month: string;
   students: StudentFee[];
   classes: ClassOption[];
+  schoolName: string;
+  schoolAddress: string | null;
+  schoolLogoUrl: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -78,6 +85,7 @@ export default function FeesClient({
 
   return (
     <div className="space-y-6">
+      <PrintHeader schoolName={schoolName} address={schoolAddress} logoUrl={schoolLogoUrl} />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-semibold text-ink">Fees</h1>
         <div className="flex items-center gap-3 print:hidden">

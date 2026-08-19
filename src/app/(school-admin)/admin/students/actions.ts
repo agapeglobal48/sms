@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { parseStudentsWorkbook } from "@/lib/excel/students";
+import { validatePassword } from "@/lib/password";
 
 async function requireSchoolAdmin() {
   const supabase = await createClient();
@@ -90,11 +91,13 @@ async function createAndLinkParentIfProvided(
 
   if (!parentName && !parentEmail && !parentPassword) return; // nothing to do
 
-  if (!parentName || !parentEmail || parentPassword.length < 8) {
+  if (!parentName || !parentEmail || !parentPassword) {
     throw new Error(
-      "To create a parent login, fill in parent name, email, and an 8+ character password (or leave all three blank to skip)."
+      "To create a parent login, fill in parent name, email, and a password (or leave all three blank to skip)."
     );
   }
+  const passwordError = validatePassword(parentPassword);
+  if (passwordError) throw new Error(passwordError);
 
   const admin = createAdminClient();
 

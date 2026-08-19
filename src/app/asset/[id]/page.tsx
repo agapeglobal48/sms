@@ -21,7 +21,7 @@ export default async function PublicAssetPage({
   const { data: asset } = await admin
     .from("assets")
     .select(
-      "id, category, name, serial_key, os, classroom, quantity, publisher, purchase_date, allocation_date, image_url, school_id"
+      "id, category, name, serial_key, os, classroom, quantity, publisher, supplier, purchase_date, allocation_date, image_url, school_id"
     )
     .eq("id", id)
     .single();
@@ -65,6 +65,7 @@ export default async function PublicAssetPage({
             <Info label="Quantity" value={asset.quantity?.toString()} />
             <Info label="OS" value={asset.os} />
             <Info label="Publisher" value={asset.publisher} />
+            <Info label="Supplier" value={asset.supplier} />
             <Info label="Purchased" value={asset.purchase_date} />
             <Info label="Allocated" value={asset.allocation_date} />
           </div>
