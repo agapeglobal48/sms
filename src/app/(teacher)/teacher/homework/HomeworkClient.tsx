@@ -12,6 +12,7 @@ type HomeworkItem = {
   description: string | null;
   due_date: string | null;
   created_at: string;
+  completions: { name: string; completedAt: string }[];
 };
 
 export default function HomeworkClient({
@@ -172,6 +173,11 @@ export default function HomeworkClient({
             {h.due_date && (
               <p className="text-xs text-muted">Due: {h.due_date}</p>
             )}
+            <p className="text-xs text-success font-medium">
+              {h.completions.length === 0
+                ? "No students have marked this complete yet."
+                : `Completed by: ${h.completions.map((c) => c.name).join(", ")}`}
+            </p>
           </div>
         ))}
       </div>

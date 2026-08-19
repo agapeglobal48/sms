@@ -18,6 +18,9 @@ import {
   ClipboardList,
   Home,
   ArrowLeft,
+  History,
+  MessageSquare,
+  Bell,
 } from "lucide-react";
 
 const ICONS = {
@@ -35,6 +38,9 @@ const ICONS = {
   clipboardList: ClipboardList,
   home: Home,
   arrowLeft: ArrowLeft,
+  history: History,
+  messageSquare: MessageSquare,
+  bell: Bell,
 } as const;
 
 export type IconKey = keyof typeof ICONS;
@@ -43,6 +49,7 @@ export type SidebarLink = {
   href: string;
   label: string;
   icon: IconKey;
+  badge?: number;
 };
 
 export default function Sidebar({
@@ -122,6 +129,11 @@ export default function Sidebar({
                   }
                 />
                 <span className="truncate">{link.label}</span>
+                {!!link.badge && (
+                  <span className="ml-auto shrink-0 rounded-full bg-gold text-brand-dark text-[10px] font-bold px-1.5 py-0.5 min-w-[18px] text-center">
+                    {link.badge > 99 ? "99+" : link.badge}
+                  </span>
+                )}
               </Link>
             );
           })}

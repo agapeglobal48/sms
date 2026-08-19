@@ -6,6 +6,7 @@ const LINKS = [
   { href: "/superadmin/schools", label: "Schools", icon: "school" as const },
   { href: "/ams/funding-bills", label: "Funding & Bills", icon: "wallet" as const },
   { href: "/ams/assets", label: "Go to AMS", icon: "package" as const },
+  { href: "/superadmin/audit-logs", label: "Audit Logs", icon: "history" as const },
 ];
 
 export default async function SuperadminLayout({

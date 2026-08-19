@@ -16,7 +16,7 @@ export default async function ParentsPage() {
 
   const schoolId = profile?.school_id;
 
-  const [{ data: parentProfiles }, { data: students }, { data: links }] =
+  const [{ data: parentProfiles }, { data: students }, { data: links }, { data: classes }] =
     await Promise.all([
       supabase
         .from("profiles")
@@ -26,12 +26,18 @@ export default async function ParentsPage() {
         .order("full_name", { ascending: true }),
       supabase
         .from("students")
-        .select("id, name")
+        .select("id, name, class_id")
         .eq("school_id", schoolId!)
         .order("name", { ascending: true }),
       supabase
         .from("parent_student_links")
         .select("parent_id, student_id"),
+      supabase
+        .from("classes")
+        .select("id, name, grade, section")
+        .eq("school_id", schoolId!)
+        .order("grade", { ascending: true })
+        .order("section", { ascending: true }),
     ]);
 
   const linksByParent = new Map<string, string[]>();
@@ -41,12 +47,39 @@ export default async function ParentsPage() {
     linksByParent.set(link.parent_id, existing);
   }
 
-  const parents = (parentProfiles ?? []).map((p) => ({
-    id: p.id,
-    full_name: p.full_name,
-    phone: p.phone,
-    linkedStudentIds: linksByParent.get(p.id) ?? [],
-  }));
+  const studentById = new Map((students ?? []).map((s) => [s.id, s]));
+  const classOrder = new Map((classes ?? []).map((c, i) => [c.id, i]));
+
+  function primaryClassOrder(studentIds: string[]): number {
+    let best = Infinity;
+    for (const sid of studentIds) {
+      const classId = studentById.get(sid)?.class_id;
+      const order = classId ? (classOrder.get(classId) ?? Infinity) : Infinity;
+      if (order < best) best = order;
+    }
+    return best;
+  }
+
+  const parents = (parentProfiles ?? [])
+    .map((p) => {
+      const linkedStudentIds = linksByParent.get(p.id) ?? [];
+      const primaryClassId = linkedStudentIds
+        .map((sid) => studentById.get(sid)?.class_id)
+        .find((cid): cid is string => Boolean(cid));
+      return {
+        id: p.id,
+        full_name: p.full_name,
+        phone: p.phone,
+        linkedStudentIds,
+        primaryClassName:
+          (classes ?? []).find((c) => c.id === primaryClassId)?.name ?? null,
+        sortOrder: primaryClassOrder(linkedStudentIds),
+      };
+    })
+    .sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return a.full_name.localeCompare(b.full_name);
+    });
 
   return (
     <div className="max-w-3xl mx-auto p-6">

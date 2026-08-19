@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, Fragment } from "react";
 import { createParent, updateParent, updateParentLinks, deleteParent } from "./actions";
 
 type StudentOption = { id: string; name: string };
@@ -9,6 +9,7 @@ type Parent = {
   full_name: string;
   phone: string | null;
   linkedStudentIds: string[];
+  primaryClassName: string | null;
 };
 
 export default function ParentsClient({
@@ -136,37 +137,48 @@ export default function ParentsClient({
             No parents yet — add the first one above.
           </p>
         )}
-        {parents.map((p) => (
-          <div key={p.id} className="flex items-center justify-between p-4 gap-4">
-            <div>
-              <p className="font-medium text-ink">{p.full_name}</p>
-              <p className="text-sm text-muted">
-                {studentNames(p.linkedStudentIds)}
-              </p>
-            </div>
-            <div className="flex gap-4 shrink-0">
-              <button
-                onClick={() => setEditingDetailsId(p.id)}
-                className="text-sm text-brand-light hover:text-brand font-medium"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => setEditingLinksId(p.id)}
-                className="text-sm text-brand-light hover:text-brand font-medium"
-              >
-                Edit children
-              </button>
-              <button
-                onClick={() => handleDelete(p.id, p.full_name)}
-                disabled={isPending}
-                className="text-sm text-danger hover:text-danger font-medium disabled:opacity-60"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
+        {parents.map((p, i) => {
+          const prevGroup = i > 0 ? parents[i - 1].primaryClassName : undefined;
+          const showGroupHeader = p.primaryClassName !== prevGroup;
+          return (
+            <Fragment key={p.id}>
+              {showGroupHeader && (
+                <div className="bg-paper px-4 py-1.5 text-xs font-semibold text-muted uppercase tracking-wide">
+                  {p.primaryClassName ?? "No children linked"}
+                </div>
+              )}
+              <div className="flex items-center justify-between p-4 gap-4">
+                <div>
+                  <p className="font-medium text-ink">{p.full_name}</p>
+                  <p className="text-sm text-muted">
+                    {studentNames(p.linkedStudentIds)}
+                  </p>
+                </div>
+                <div className="flex gap-4 shrink-0">
+                  <button
+                    onClick={() => setEditingDetailsId(p.id)}
+                    className="text-sm text-brand-light hover:text-brand font-medium"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setEditingLinksId(p.id)}
+                    className="text-sm text-brand-light hover:text-brand font-medium"
+                  >
+                    Edit children
+                  </button>
+                  <button
+                    onClick={() => handleDelete(p.id, p.full_name)}
+                    disabled={isPending}
+                    className="text-sm text-danger hover:text-danger font-medium disabled:opacity-60"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </Fragment>
+          );
+        })}
       </div>
 
       {editingDetailsId && (

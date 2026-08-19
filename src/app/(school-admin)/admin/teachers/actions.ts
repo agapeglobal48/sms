@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { logAudit } from "@/lib/audit";
 
 async function requireSchoolAdmin() {
   const supabase = await createClient();
@@ -13,7 +14,7 @@ async function requireSchoolAdmin() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, school_id")
+    .select("role, school_id, full_name")
     .eq("id", user.id)
     .single();
 
@@ -21,11 +22,11 @@ async function requireSchoolAdmin() {
     throw new Error("School Admin only.");
   }
 
-  return { schoolId: profile.school_id };
+  return { schoolId: profile.school_id, userId: user.id, userName: profile.full_name };
 }
 
 export async function createTeacher(formData: FormData) {
-  const { schoolId } = await requireSchoolAdmin();
+  const { schoolId, userId, userName } = await requireSchoolAdmin();
 
   const fullName = String(formData.get("fullName") || "").trim();
   const email = String(formData.get("email") || "").trim();
@@ -60,12 +61,23 @@ export async function createTeacher(formData: FormData) {
     throw new Error(profileError.message);
   }
 
+  await logAudit({
+    actorId: userId,
+    actorName: userName,
+    actorRole: "school_admin",
+    action: "teacher_created",
+    targetType: "profile",
+    targetId: authUser.user.id,
+    targetLabel: fullName,
+    schoolId,
+  });
+
   revalidatePath("/admin/teachers");
   revalidatePath("/admin/classes");
 }
 
 export async function updateTeacher(teacherId: string, formData: FormData) {
-  const { schoolId } = await requireSchoolAdmin();
+  const { schoolId, userId, userName } = await requireSchoolAdmin();
   const admin = createAdminClient();
 
   const { data: teacher } = await admin
@@ -79,24 +91,8 @@ export async function updateTeacher(teacherId: string, formData: FormData) {
 
   const fullName = String(formData.get("fullName") || "").trim();
   const phone = String(formData.get("phone") || "").trim() || null;
-  const newEmail = String(formData.get("newEmail") || "").trim();
-  const newPassword = String(formData.get("newPassword") || "");
 
   if (!fullName) throw new Error("Name is required.");
-  if (newPassword && newPassword.length < 8) {
-    throw new Error("New password must be at least 8 characters.");
-  }
-
-  if (newEmail || newPassword) {
-    const { error: authError } = await admin.auth.admin.updateUserById(
-      teacherId,
-      {
-        ...(newEmail ? { email: newEmail } : {}),
-        ...(newPassword ? { password: newPassword } : {}),
-      }
-    );
-    if (authError) throw new Error(authError.message);
-  }
 
   const { error } = await admin
     .from("profiles")
@@ -104,12 +100,99 @@ export async function updateTeacher(teacherId: string, formData: FormData) {
     .eq("id", teacherId);
   if (error) throw new Error(error.message);
 
+  await logAudit({
+    actorId: userId,
+    actorName: userName,
+    actorRole: "school_admin",
+    action: "teacher_updated",
+    targetType: "profile",
+    targetId: teacherId,
+    targetLabel: fullName,
+    schoolId,
+  });
+
   revalidatePath("/admin/teachers");
   revalidatePath("/admin/classes");
 }
 
+/** Requires the caller to have already re-authenticated client-side. */
+export async function getTeacherEmail(teacherId: string) {
+  const { schoolId, userId, userName } = await requireSchoolAdmin();
+  const admin = createAdminClient();
+
+  const { data: teacher } = await admin
+    .from("profiles")
+    .select("school_id, role, full_name")
+    .eq("id", teacherId)
+    .single();
+  if (!teacher || teacher.school_id !== schoolId || teacher.role !== "teacher") {
+    throw new Error("Teacher not found in your school.");
+  }
+
+  const { data: authUser, error } = await admin.auth.admin.getUserById(teacherId);
+  if (error || !authUser.user) throw new Error("Could not load this login.");
+
+  await logAudit({
+    actorId: userId,
+    actorName: userName,
+    actorRole: "school_admin",
+    action: "credential_viewed",
+    targetType: "profile",
+    targetId: teacherId,
+    targetLabel: teacher.full_name,
+    schoolId,
+  });
+
+  return { email: authUser.user.email ?? null };
+}
+
+export async function resetTeacherCredentials(
+  teacherId: string,
+  formData: FormData
+) {
+  const { schoolId, userId, userName } = await requireSchoolAdmin();
+  const admin = createAdminClient();
+
+  const { data: teacher } = await admin
+    .from("profiles")
+    .select("school_id, role, full_name")
+    .eq("id", teacherId)
+    .single();
+  if (!teacher || teacher.school_id !== schoolId || teacher.role !== "teacher") {
+    throw new Error("Teacher not found in your school.");
+  }
+
+  const newEmail = String(formData.get("newEmail") || "").trim();
+  const newPassword = String(formData.get("newPassword") || "");
+
+  if (!newEmail && !newPassword) return; // nothing to change
+  if (newPassword && newPassword.length < 8) {
+    throw new Error("New password must be at least 8 characters.");
+  }
+
+  const { error } = await admin.auth.admin.updateUserById(teacherId, {
+    ...(newEmail ? { email: newEmail } : {}),
+    ...(newPassword ? { password: newPassword } : {}),
+  });
+  if (error) throw new Error(error.message);
+
+  await logAudit({
+    actorId: userId,
+    actorName: userName,
+    actorRole: "school_admin",
+    action: "credential_reset",
+    targetType: "profile",
+    targetId: teacherId,
+    targetLabel: teacher.full_name,
+    schoolId,
+    details: { emailChanged: Boolean(newEmail), passwordChanged: Boolean(newPassword) },
+  });
+
+  revalidatePath("/admin/teachers");
+}
+
 export async function deleteTeacher(teacherId: string) {
-  const { schoolId } = await requireSchoolAdmin();
+  const { schoolId, userId, userName } = await requireSchoolAdmin();
   const admin = createAdminClient();
 
   // Confirm this teacher actually belongs to the caller's school before
@@ -117,7 +200,7 @@ export async function deleteTeacher(teacherId: string) {
   // school's teacher by guessing an id.
   const { data: teacher } = await admin
     .from("profiles")
-    .select("id, school_id, role")
+    .select("id, school_id, role, full_name")
     .eq("id", teacherId)
     .single();
 
@@ -129,6 +212,17 @@ export async function deleteTeacher(teacherId: string) {
   // classes.teacher_id pointing at them, per the schema's ON DELETE rules).
   const { error } = await admin.auth.admin.deleteUser(teacherId);
   if (error) throw new Error(error.message);
+
+  await logAudit({
+    actorId: userId,
+    actorName: userName,
+    actorRole: "school_admin",
+    action: "teacher_deleted",
+    targetType: "profile",
+    targetId: teacherId,
+    targetLabel: teacher.full_name,
+    schoolId,
+  });
 
   revalidatePath("/admin/teachers");
   revalidatePath("/admin/classes");

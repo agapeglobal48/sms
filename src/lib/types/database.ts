@@ -189,6 +189,74 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["homework"]["Insert"]>;
         Relationships: [];
       };
+      homework_completions: {
+        Row: {
+          id: string;
+          homework_id: string;
+          student_id: string;
+          completed_by: string | null;
+          photo_url: string | null;
+          completed_at: string;
+        };
+        Insert: {
+          id?: string;
+          homework_id: string;
+          student_id: string;
+          completed_by?: string | null;
+          photo_url?: string | null;
+          completed_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["homework_completions"]["Insert"]>;
+        Relationships: [];
+      };
+      student_remarks: {
+        Row: {
+          id: string;
+          school_id: string;
+          student_id: string;
+          class_id: string;
+          teacher_id: string | null;
+          remark: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          school_id: string;
+          student_id: string;
+          class_id: string;
+          teacher_id?: string | null;
+          remark: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["student_remarks"]["Insert"]>;
+        Relationships: [];
+      };
+      notifications: {
+        Row: {
+          id: string;
+          school_id: string;
+          parent_id: string;
+          student_id: string | null;
+          type: string;
+          title: string;
+          message: string | null;
+          read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          school_id: string;
+          parent_id: string;
+          student_id?: string | null;
+          type: string;
+          title: string;
+          message?: string | null;
+          read?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Insert"]>;
+        Relationships: [];
+      };
       fees: {
         Row: {
           id: string;
@@ -226,6 +294,12 @@ export interface Database {
           notes: string | null;
           created_by: string | null;
           created_at: string;
+          deletion_requested: boolean;
+          deletion_requested_by: string | null;
+          deletion_requested_at: string | null;
+          image_url: string | null;
+          purchase_date: string | null;
+          allocation_date: string | null;
         };
         Insert: {
           id?: string;
@@ -241,8 +315,116 @@ export interface Database {
           notes?: string | null;
           created_by?: string | null;
           created_at?: string;
+          deletion_requested?: boolean;
+          deletion_requested_by?: string | null;
+          deletion_requested_at?: string | null;
+          image_url?: string | null;
+          purchase_date?: string | null;
+          allocation_date?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["assets"]["Insert"]>;
+        Relationships: [];
+      };
+      audit_logs: {
+        Row: {
+          id: string;
+          actor_id: string | null;
+          actor_name: string | null;
+          actor_role: Role | null;
+          action: string;
+          target_type: string | null;
+          target_id: string | null;
+          target_label: string | null;
+          school_id: string | null;
+          details: Record<string, unknown> | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          actor_id?: string | null;
+          actor_name?: string | null;
+          actor_role?: Role | null;
+          action: string;
+          target_type?: string | null;
+          target_id?: string | null;
+          target_label?: string | null;
+          school_id?: string | null;
+          details?: Record<string, unknown> | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["audit_logs"]["Insert"]>;
+        Relationships: [];
+      };
+      assessment_components: {
+        Row: {
+          id: string;
+          school_id: string;
+          class_id: string;
+          subject: string;
+          name: string;
+          weight: number;
+          included: boolean;
+          is_default: boolean;
+          sort_order: number;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          school_id: string;
+          class_id: string;
+          subject: string;
+          name: string;
+          weight?: number;
+          included?: boolean;
+          is_default?: boolean;
+          sort_order?: number;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["assessment_components"]["Insert"]>;
+        Relationships: [];
+      };
+      mark_entries: {
+        Row: {
+          id: string;
+          school_id: string;
+          student_id: string;
+          component_id: string;
+          score: number | null;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          school_id: string;
+          student_id: string;
+          component_id: string;
+          score?: number | null;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["mark_entries"]["Insert"]>;
+        Relationships: [];
+      };
+      subject_assignments: {
+        Row: {
+          id: string;
+          school_id: string;
+          class_id: string;
+          subject: string;
+          teacher_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          school_id: string;
+          class_id: string;
+          subject: string;
+          teacher_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["subject_assignments"]["Insert"]>;
         Relationships: [];
       };
       funding: {

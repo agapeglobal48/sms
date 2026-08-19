@@ -1,7 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createSchool, updateSchool, updateSchoolAdmin, deleteSchool } from "./actions";
+import Link from "next/link";
+import {
+  createSchool,
+  updateSchool,
+  updateSchoolAdmin,
+  deleteSchool,
+  getSchoolAdminEmail,
+  resetSchoolAdminCredentials,
+} from "./actions";
+import ManageLoginModal from "@/components/shared/ManageLoginModal";
 
 type School = {
   id: string;
@@ -17,6 +26,7 @@ export default function SchoolsClient({ schools }: { schools: School[] }) {
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [managingId, setManagingId] = useState<string | null>(null);
 
   function handleCreate(formData: FormData) {
     setError(null);
@@ -130,7 +140,7 @@ export default function SchoolsClient({ schools }: { schools: School[] }) {
           </p>
         )}
         {schools.map((s) => (
-          <div key={s.id} className="flex items-center justify-between p-4">
+          <div key={s.id} className="flex items-center justify-between p-4 flex-wrap gap-2">
             <div>
               <p className="font-medium text-ink">{s.name}</p>
               {s.address && <p className="text-sm text-muted">{s.address}</p>}
@@ -138,13 +148,27 @@ export default function SchoolsClient({ schools }: { schools: School[] }) {
                 <p className="text-xs text-muted">Admin: {s.adminName}</p>
               )}
             </div>
-            <div className="flex gap-4">
+            <div className="flex gap-4 flex-wrap">
+              <Link
+                href={`/superadmin/schools/${s.id}/view`}
+                className="text-sm text-brand-light hover:text-brand font-medium"
+              >
+                View School
+              </Link>
               <button
                 onClick={() => setEditingId(s.id)}
                 className="text-sm text-brand-light hover:text-brand font-medium"
               >
                 Edit
               </button>
+              {s.adminId && (
+                <button
+                  onClick={() => setManagingId(s.id)}
+                  className="text-sm text-brand-light hover:text-brand font-medium"
+                >
+                  Manage login
+                </button>
+              )}
               <button
                 onClick={() => handleDelete(s.id, s.name)}
                 disabled={isPending}
@@ -197,7 +221,7 @@ export default function SchoolsClient({ schools }: { schools: School[] }) {
                 {school.adminId && (
                   <div className="border-t border-line pt-5">
                     <h2 className="font-medium text-ink mb-3">
-                      School Admin login
+                      School Admin name
                     </h2>
                     <form
                       action={(fd) => handleUpdateAdmin(school.adminId!, fd)}
@@ -209,26 +233,16 @@ export default function SchoolsClient({ schools }: { schools: School[] }) {
                         defaultValue={school.adminName ?? ""}
                         required
                       />
-                      <p className="text-sm text-muted">
-                        Leave the fields below blank to keep their current
-                        email/password.
+                      <p className="text-xs text-muted">
+                        To change this admin&apos;s email or password, use
+                        &quot;Manage login&quot; instead.
                       </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Field label="New email" name="newAdminEmail" type="email" />
-                        <Field
-                          label="New password"
-                          name="newAdminPassword"
-                          type="password"
-                          minLength={8}
-                          helper="At least 8 characters if changing"
-                        />
-                      </div>
                       <button
                         type="submit"
                         disabled={isPending}
                         className="rounded-lg bg-brand-light text-white text-sm font-medium px-4 py-2 hover:bg-brand transition-colors disabled:opacity-60"
                       >
-                        {isPending ? "Saving…" : "Save admin login"}
+                        {isPending ? "Saving…" : "Save name"}
                       </button>
                     </form>
                   </div>
@@ -237,6 +251,16 @@ export default function SchoolsClient({ schools }: { schools: School[] }) {
             );
           })()}
         </EditModal>
+      )}
+
+      {managingId && (
+        <ManageLoginModal
+          onClose={() => setManagingId(null)}
+          targetId={schools.find((s) => s.id === managingId)?.adminId ?? ""}
+          targetLabel={schools.find((s) => s.id === managingId)?.adminName ?? ""}
+          getEmail={getSchoolAdminEmail}
+          resetCredentials={resetSchoolAdminCredentials}
+        />
       )}
     </div>
   );

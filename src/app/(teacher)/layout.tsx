@@ -6,6 +6,7 @@ const LINKS = [
   { href: "/teacher/attendance", label: "Attendance", icon: "calendarCheck" as const },
   { href: "/teacher/marks", label: "Marks", icon: "award" as const },
   { href: "/teacher/homework", label: "Homework", icon: "clipboardList" as const },
+  { href: "/teacher/remarks", label: "Remarks", icon: "messageSquare" as const },
 ];
 
 export default async function TeacherLayout({

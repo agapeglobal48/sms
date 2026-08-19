@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { notifyParentsOfClass } from "@/lib/notifications";
 
 async function requireTeacherOfClass(classId: string) {
   const supabase = await createClient();
@@ -22,7 +23,23 @@ async function requireTeacherOfClass(classId: string) {
     .select("id, teacher_id, school_id")
     .eq("id", classId)
     .single();
-  if (!klass || klass.teacher_id !== user.id) {
+  if (!klass) throw new Error("Class not found.");
+
+  const isClassTeacher = klass.teacher_id === user.id;
+
+  let isSubjectTeacher = false;
+  if (!isClassTeacher) {
+    const { data: assignment } = await supabase
+      .from("subject_assignments")
+      .select("id")
+      .eq("class_id", classId)
+      .eq("teacher_id", user.id)
+      .limit(1)
+      .maybeSingle();
+    isSubjectTeacher = Boolean(assignment);
+  }
+
+  if (!isClassTeacher && !isSubjectTeacher) {
     throw new Error("You are not assigned to this class.");
   }
 
@@ -49,6 +66,14 @@ export async function createHomework(classId: string, formData: FormData) {
     created_by: userId,
   });
   if (error) throw new Error(error.message);
+
+  await notifyParentsOfClass(supabase, {
+    schoolId,
+    classId,
+    type: "homework",
+    title: `New homework: ${title}`,
+    message: subject ? `Subject: ${subject}` : undefined,
+  });
 
   revalidatePath("/teacher/homework");
 }

@@ -1,12 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import ChildSelector from "./ChildSelector";
-
-function weightedTotal(first: number | null, mid: number | null, final: number | null) {
-  const f = first ?? 0;
-  const m = mid ?? 0;
-  const fi = final ?? 0;
-  return Math.round((f * 0.25 + m * 0.25 + fi * 0.5) * 10) / 10;
-}
+import ParentMarksSection from "./ParentMarksSection";
+import ParentHomeworkSection from "./ParentHomeworkSection";
 
 export default async function ParentPage({
   searchParams,
@@ -54,7 +49,7 @@ export default async function ParentPage({
   const [
     { data: classInfo },
     { data: attendance },
-    { data: marks },
+    { data: components },
     { data: homework },
     { data: fees },
   ] = await Promise.all([
@@ -71,11 +66,14 @@ export default async function ParentPage({
       .eq("student_id", selectedId)
       .order("date", { ascending: false })
       .limit(30),
-    supabase
-      .from("marks")
-      .select("subject, first, mid, final")
-      .eq("student_id", selectedId)
-      .order("subject", { ascending: true }),
+    selectedChild?.class_id
+      ? supabase
+          .from("assessment_components")
+          .select("id, subject, name, weight, included, sort_order")
+          .eq("class_id", selectedChild.class_id)
+          .order("subject", { ascending: true })
+          .order("sort_order", { ascending: true })
+      : Promise.resolve({ data: [] as never[] }),
     selectedChild?.class_id
       ? supabase
           .from("homework")
@@ -91,6 +89,26 @@ export default async function ParentPage({
       .order("month", { ascending: false }),
   ]);
 
+  const componentIds = (components ?? []).map((c) => c.id);
+  const { data: entries } = componentIds.length
+    ? await supabase
+        .from("mark_entries")
+        .select("component_id, score")
+        .eq("student_id", selectedId)
+        .in("component_id", componentIds)
+    : { data: [] as { component_id: string; score: number | null }[] };
+  const scoreByComponentId = new Map((entries ?? []).map((e) => [e.component_id, e.score]));
+
+  const subjectGroups = new Map<
+    string,
+    { id: string; name: string; weight: number; included: boolean; sort_order: number }[]
+  >();
+  for (const c of components ?? []) {
+    const list = subjectGroups.get(c.subject) ?? [];
+    list.push(c);
+    subjectGroups.set(c.subject, list);
+  }
+
   const attendanceCounts = (attendance ?? []).reduce(
     (acc, a) => {
       acc[a.status as "present" | "absent" | "leave"] += 1;
@@ -98,6 +116,32 @@ export default async function ParentPage({
     },
     { present: 0, absent: 0, leave: 0 }
   );
+
+  const homeworkIds = (homework ?? []).map((h) => h.id);
+  const { data: completions } = homeworkIds.length
+    ? await supabase
+        .from("homework_completions")
+        .select("homework_id, completed_at, photo_url")
+        .eq("student_id", selectedId)
+        .in("homework_id", homeworkIds)
+    : { data: [] as { homework_id: string; completed_at: string; photo_url: string | null }[] };
+  const completionByHomeworkId = new Map((completions ?? []).map((c) => [c.homework_id, c]));
+
+  const homeworkWithCompletion = (homework ?? []).map((h) => {
+    const completion = completionByHomeworkId.get(h.id);
+    return {
+      ...h,
+      completed: Boolean(completion),
+      completedAt: completion?.completed_at ?? null,
+      photoUrl: completion?.photo_url ?? null,
+    };
+  });
+
+  const { data: remarks } = await supabase
+    .from("student_remarks")
+    .select("id, remark, created_at")
+    .eq("student_id", selectedId)
+    .order("created_at", { ascending: false });
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
@@ -125,7 +169,7 @@ export default async function ParentPage({
           <span className="text-danger font-medium">
             {attendanceCounts.absent} Absent
           </span>
-          <span className="text-amber-600 font-medium">
+          <span className="text-gold font-medium">
             {attendanceCounts.leave} Leave
           </span>
         </div>
@@ -142,8 +186,8 @@ export default async function ParentPage({
                   (a.status === "present"
                     ? "bg-success"
                     : a.status === "absent"
-                      ? "bg-danger-soft0"
-                      : "bg-amber-400")
+                      ? "bg-danger"
+                      : "bg-gold")
                 }
               />
             ))}
@@ -154,61 +198,19 @@ export default async function ParentPage({
       {/* Marks */}
       <section className="bg-surface rounded-xl border border-line p-5">
         <h2 className="font-medium text-ink mb-3">Marks</h2>
-        {(marks ?? []).length === 0 ? (
-          <p className="text-sm text-muted">No marks recorded yet.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted border-b border-line">
-                <th className="py-2 font-medium">Subject</th>
-                <th className="py-2 font-medium">First</th>
-                <th className="py-2 font-medium">Mid</th>
-                <th className="py-2 font-medium">Final</th>
-                <th className="py-2 font-medium">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {(marks ?? []).map((m) => (
-                <tr key={m.subject}>
-                  <td className="py-2 font-medium text-ink">{m.subject}</td>
-                  <td className="py-2 text-muted">{m.first ?? "—"}</td>
-                  <td className="py-2 text-muted">{m.mid ?? "—"}</td>
-                  <td className="py-2 text-muted">{m.final ?? "—"}</td>
-                  <td className="py-2 font-medium text-ink">
-                    {weightedTotal(m.first, m.mid, m.final)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <ParentMarksSection
+          subjectGroups={Array.from(subjectGroups.entries()).map(([subject, comps]) => ({
+            subject,
+            components: comps,
+          }))}
+          scores={Object.fromEntries(scoreByComponentId)}
+        />
       </section>
 
       {/* Homework */}
       <section className="bg-surface rounded-xl border border-line p-5">
         <h2 className="font-medium text-ink mb-3">Homework</h2>
-        {(homework ?? []).length === 0 ? (
-          <p className="text-sm text-muted">No homework posted yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {(homework ?? []).map((h) => (
-              <div key={h.id} className="border-b border-line last:border-0 pb-3 last:pb-0">
-                <p className="font-medium text-ink">
-                  {h.title}
-                  {h.subject && (
-                    <span className="text-muted font-normal"> · {h.subject}</span>
-                  )}
-                </p>
-                {h.description && (
-                  <p className="text-sm text-muted">{h.description}</p>
-                )}
-                {h.due_date && (
-                  <p className="text-xs text-muted">Due: {h.due_date}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        <ParentHomeworkSection studentId={selectedId} homework={homeworkWithCompletion} />
       </section>
 
       {/* Fees */}
@@ -230,6 +232,25 @@ export default async function ParentPage({
                 >
                   {f.status === "paid" ? "Paid" : "Unpaid"}
                 </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Remarks */}
+      <section className="bg-surface rounded-xl border border-line p-5">
+        <h2 className="font-medium text-ink mb-3">Teacher Remarks</h2>
+        {(remarks ?? []).length === 0 ? (
+          <p className="text-sm text-muted">No remarks yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {(remarks ?? []).map((r) => (
+              <div key={r.id} className="bg-paper rounded-lg p-3 text-sm">
+                <p className="text-ink">{r.remark}</p>
+                <p className="text-xs text-muted mt-1">
+                  {new Date(r.created_at).toLocaleDateString()}
+                </p>
               </div>
             ))}
           </div>

@@ -1,13 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-
-function weightedTotal(first: number | null, mid: number | null, final: number | null) {
-  const f = first ?? 0;
-  const m = mid ?? 0;
-  const fi = final ?? 0;
-  return Math.round((f * 0.25 + m * 0.25 + fi * 0.5) * 10) / 10;
-}
+import PrintButton from "@/components/shared/PrintButton";
+import { computeWeightedTotal } from "@/lib/marks";
 
 export default async function StudentRecordPage({
   params,
@@ -39,7 +34,7 @@ export default async function StudentRecordPage({
     notFound();
   }
 
-  const [{ data: classInfo }, { data: attendance }, { data: marks }, { data: fees }] =
+  const [{ data: classInfo }, { data: attendance }, { data: components }, { data: fees }] =
     await Promise.all([
       student.class_id
         ? supabase.from("classes").select("name").eq("id", student.class_id).single()
@@ -50,17 +45,40 @@ export default async function StudentRecordPage({
         .eq("student_id", id)
         .order("date", { ascending: false })
         .limit(30),
-      supabase
-        .from("marks")
-        .select("subject, first, mid, final")
-        .eq("student_id", id)
-        .order("subject", { ascending: true }),
+      student.class_id
+        ? supabase
+            .from("assessment_components")
+            .select("id, subject, name, weight, included, sort_order")
+            .eq("class_id", student.class_id)
+            .order("subject", { ascending: true })
+            .order("sort_order", { ascending: true })
+        : Promise.resolve({ data: [] as never[] }),
       supabase
         .from("fees")
         .select("month, status")
         .eq("student_id", id)
         .order("month", { ascending: false }),
     ]);
+
+  const componentIds = (components ?? []).map((c) => c.id);
+  const { data: entries } = componentIds.length
+    ? await supabase
+        .from("mark_entries")
+        .select("component_id, score")
+        .eq("student_id", id)
+        .in("component_id", componentIds)
+    : { data: [] as { component_id: string; score: number | null }[] };
+  const scoreByComponentId = new Map((entries ?? []).map((e) => [e.component_id, e.score]));
+
+  const subjectGroups = new Map<
+    string,
+    { id: string; name: string; weight: number; included: boolean; sort_order: number }[]
+  >();
+  for (const c of components ?? []) {
+    const list = subjectGroups.get(c.subject) ?? [];
+    list.push(c);
+    subjectGroups.set(c.subject, list);
+  }
 
   const attendanceCounts = (attendance ?? []).reduce(
     (acc, a) => {
@@ -72,9 +90,12 @@ export default async function StudentRecordPage({
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
-      <Link href="/admin/students" className="text-sm text-brand-light hover:text-brand">
-        ← Back to Students
-      </Link>
+      <div className="flex items-center justify-between print:hidden">
+        <Link href="/admin/students" className="text-sm text-brand-light hover:text-brand">
+          ← Back to Students
+        </Link>
+        <PrintButton label="Print report" />
+      </div>
 
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
@@ -83,7 +104,7 @@ export default async function StudentRecordPage({
         </div>
         <Link
           href="/admin/students"
-          className="text-sm text-brand-light hover:text-brand font-medium"
+          className="text-sm text-brand-light hover:text-brand font-medium print:hidden"
         >
           Edit details
         </Link>
@@ -136,36 +157,43 @@ export default async function StudentRecordPage({
         )}
       </section>
 
-      {/* Marks */}
+      {/* Marks — grouped by subject, one weighted total per subject */}
       <section className="bg-surface rounded-xl border border-line p-5">
         <h2 className="font-medium text-ink mb-3">Marks</h2>
-        {(marks ?? []).length === 0 ? (
+        {subjectGroups.size === 0 ? (
           <p className="text-sm text-muted">No marks recorded yet.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted border-b border-line">
-                <th className="py-2 font-medium">Subject</th>
-                <th className="py-2 font-medium">First</th>
-                <th className="py-2 font-medium">Mid</th>
-                <th className="py-2 font-medium">Final</th>
-                <th className="py-2 font-medium">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {(marks ?? []).map((m) => (
-                <tr key={m.subject}>
-                  <td className="py-2 font-medium text-ink">{m.subject}</td>
-                  <td className="py-2 text-muted">{m.first ?? "—"}</td>
-                  <td className="py-2 text-muted">{m.mid ?? "—"}</td>
-                  <td className="py-2 text-muted">{m.final ?? "—"}</td>
-                  <td className="py-2 font-medium text-ink">
-                    {weightedTotal(m.first, m.mid, m.final)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="space-y-4">
+            {Array.from(subjectGroups.entries()).map(([subject, subjectComponents]) => (
+              <div key={subject}>
+                <p className="font-medium text-ink text-sm mb-1">{subject}</p>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-muted border-b border-line">
+                      {subjectComponents.map((c) => (
+                        <th key={c.id} className="py-1.5 font-medium">
+                          {c.name} ({c.weight}%)
+                        </th>
+                      ))}
+                      <th className="py-1.5 font-medium">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      {subjectComponents.map((c) => (
+                        <td key={c.id} className="py-1.5 text-muted">
+                          {scoreByComponentId.get(c.id) ?? "—"}
+                        </td>
+                      ))}
+                      <td className="py-1.5 font-medium text-ink">
+                        {computeWeightedTotal(subjectComponents, scoreByComponentId)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
         )}
       </section>
 

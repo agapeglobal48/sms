@@ -2,7 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createAsset, updateAsset, deleteAsset } from "./actions";
+import {
+  createAsset,
+  updateAsset,
+  requestAssetDeletion,
+  cancelAssetDeletionRequest,
+  approveAssetDeletion,
+  rejectAssetDeletion,
+} from "./actions";
+import QRCodeModal from "@/components/shared/QRCodeModal";
 
 type SchoolOption = { id: string; name: string };
 type Asset = {
@@ -16,6 +24,10 @@ type Asset = {
   quantity: number;
   publisher: string | null;
   notes: string | null;
+  deletion_requested: boolean;
+  purchase_date: string | null;
+  allocation_date: string | null;
+  image_url: string | null;
 };
 
 const CATEGORIES = ["electronics", "furniture", "books", "stationery", "other"];
@@ -36,6 +48,7 @@ export default function AssetsClient({
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [qrAssetId, setQrAssetId] = useState<string | null>(null);
 
   function handleSchoolChange(newSchoolId: string) {
     router.push(`/ams/assets?schoolId=${newSchoolId}`);
@@ -65,12 +78,51 @@ export default function AssetsClient({
     });
   }
 
-  function handleDelete(assetId: string, name: string) {
-    if (!confirm(`Delete "${name}"?`)) return;
+  function handleRequestDeletion(assetId: string, name: string) {
+    if (
+      !confirm(
+        `Request deletion of "${name}"? This asset will be removed once Superadmin approves.`
+      )
+    )
+      return;
     setError(null);
     startTransition(async () => {
       try {
-        await deleteAsset(assetId, schoolId);
+        await requestAssetDeletion(assetId, schoolId);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Something went wrong.");
+      }
+    });
+  }
+
+  function handleCancelRequest(assetId: string) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await cancelAssetDeletionRequest(assetId, schoolId);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Something went wrong.");
+      }
+    });
+  }
+
+  function handleApprove(assetId: string, name: string) {
+    if (!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await approveAssetDeletion(assetId, schoolId);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Something went wrong.");
+      }
+    });
+  }
+
+  function handleReject(assetId: string) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await rejectAssetDeletion(assetId, schoolId);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Something went wrong.");
       }
@@ -125,43 +177,123 @@ export default function AssetsClient({
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-muted border-b border-line">
+              <th className="p-3 font-medium"></th>
               <th className="p-3 font-medium">Name</th>
               <th className="p-3 font-medium">Category</th>
               <th className="p-3 font-medium">Serial / Batch Key</th>
               <th className="p-3 font-medium">Classroom</th>
               <th className="p-3 font-medium">Qty</th>
               <th className="p-3 font-medium"></th>
+              <th className="p-3 font-medium"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
             {assets.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-5 text-muted">
+                <td colSpan={8} className="p-5 text-muted">
                   No assets recorded yet — add the first one above.
                 </td>
               </tr>
             )}
             {assets.map((a) => (
               <tr key={a.id}>
-                <td className="p-3 font-medium text-ink">{a.name}</td>
+                <td className="p-3">
+                  {a.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={a.image_url}
+                      alt={a.name}
+                      className="w-10 h-10 rounded-lg object-cover border border-line"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-paper border border-line" />
+                  )}
+                </td>
+                <td className="p-3 font-medium text-ink">
+                  {a.name}
+                  {a.deletion_requested && (
+                    <span className="ml-2 inline-block rounded-full bg-gold-soft text-gold text-xs font-medium px-2 py-0.5 align-middle">
+                      Deletion requested
+                    </span>
+                  )}
+                </td>
                 <td className="p-3 text-muted capitalize">{a.category}</td>
                 <td className="p-3 text-muted">{a.serial_key ?? "—"}</td>
                 <td className="p-3 text-muted">{a.classroom ?? "—"}</td>
                 <td className="p-3 text-muted">{a.quantity}</td>
                 <td className="p-3 whitespace-nowrap">
-                  <button
-                    onClick={() => setEditingId(a.id)}
-                    className="text-brand-light hover:text-brand font-medium mr-4"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(a.id, a.name)}
-                    disabled={isPending}
-                    className="text-danger hover:text-danger font-medium disabled:opacity-60"
-                  >
-                    Delete
-                  </button>
+                  {a.serial_key ? (
+                    <button
+                      onClick={() => setQrAssetId(a.id)}
+                      className="text-brand-light hover:text-brand font-medium"
+                    >
+                      QR
+                    </button>
+                  ) : (
+                    <span className="text-muted text-xs">No serial key</span>
+                  )}
+                </td>
+                <td className="p-3 whitespace-nowrap">
+                  {isSuperadmin ? (
+                    a.deletion_requested ? (
+                      <>
+                        <button
+                          onClick={() => handleApprove(a.id, a.name)}
+                          disabled={isPending}
+                          className="text-danger hover:text-danger font-medium mr-4 disabled:opacity-60"
+                        >
+                          Approve deletion
+                        </button>
+                        <button
+                          onClick={() => handleReject(a.id)}
+                          disabled={isPending}
+                          className="text-brand-light hover:text-brand font-medium disabled:opacity-60"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => setEditingId(a.id)}
+                          className="text-brand-light hover:text-brand font-medium mr-4"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleApprove(a.id, a.name)}
+                          disabled={isPending}
+                          className="text-danger hover:text-danger font-medium disabled:opacity-60"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )
+                  ) : a.deletion_requested ? (
+                    <button
+                      onClick={() => handleCancelRequest(a.id)}
+                      disabled={isPending}
+                      className="text-muted hover:text-ink font-medium disabled:opacity-60"
+                    >
+                      Cancel request
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setEditingId(a.id)}
+                        className="text-brand-light hover:text-brand font-medium mr-4"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleRequestDeletion(a.id, a.name)}
+                        disabled={isPending}
+                        className="text-danger hover:text-danger font-medium disabled:opacity-60"
+                      >
+                        Request deletion
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
@@ -179,6 +311,15 @@ export default function AssetsClient({
             disabled={isPending}
           />
         </EditModal>
+      )}
+
+      {qrAssetId && (
+        <QRCodeModal
+          assetId={qrAssetId}
+          serialKey={assets.find((a) => a.id === qrAssetId)?.serial_key ?? ""}
+          label={assets.find((a) => a.id === qrAssetId)?.name ?? ""}
+          onClose={() => setQrAssetId(null)}
+        />
       )}
     </div>
   );
@@ -281,6 +422,18 @@ function AssetForm({
           name="publisher"
           defaultValue={asset?.publisher ?? ""}
         />
+        <Field
+          label="Date of purchase"
+          name="purchaseDate"
+          type="date"
+          defaultValue={asset?.purchase_date ?? ""}
+        />
+        <Field
+          label="Date of allocation"
+          name="allocationDate"
+          type="date"
+          defaultValue={asset?.allocation_date ?? ""}
+        />
         <div className="sm:col-span-2">
           <Field
             label="Assigned users (comma-separated)"
@@ -288,6 +441,33 @@ function AssetForm({
             defaultValue={asset?.assigned_users?.join(", ") ?? ""}
             placeholder="e.g. Grade 6 teachers, Front office"
           />
+        </div>
+        <div className="sm:col-span-3">
+          <label className="block text-sm font-medium text-ink mb-1">
+            Photo (optional)
+          </label>
+          <div className="flex items-center gap-3">
+            {asset?.image_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={asset.image_url}
+                alt={asset.name}
+                className="w-14 h-14 rounded-lg object-cover border border-line"
+              />
+            )}
+            <input
+              name="image"
+              type="file"
+              accept="image/*"
+              className="text-sm text-ink flex-1"
+            />
+          </div>
+          {asset?.image_url && (
+            <label className="flex items-center gap-2 text-sm text-muted mt-2">
+              <input type="checkbox" name="removeImage" className="rounded border-line" />
+              Remove current photo
+            </label>
+          )}
         </div>
         <div className="sm:col-span-3">
           <label className="block text-sm font-medium text-ink mb-1">

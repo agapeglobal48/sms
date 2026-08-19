@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { logAudit } from "@/lib/audit";
 
 async function assertSuperadmin() {
   const supabase = await createClient();
@@ -13,15 +14,17 @@ async function assertSuperadmin() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, full_name")
     .eq("id", user.id)
     .single();
 
   if (profile?.role !== "superadmin") throw new Error("Superadmin only.");
+
+  return { userId: user.id, userName: profile.full_name };
 }
 
 export async function createSchool(formData: FormData) {
-  await assertSuperadmin();
+  const { userId, userName } = await assertSuperadmin();
 
   const schoolName = String(formData.get("schoolName") || "").trim();
   const address = String(formData.get("address") || "").trim();
@@ -73,11 +76,22 @@ export async function createSchool(formData: FormData) {
     throw new Error(profileError.message);
   }
 
+  await logAudit({
+    actorId: userId,
+    actorName: userName,
+    actorRole: "superadmin",
+    action: "school_created",
+    targetType: "school",
+    targetId: school.id,
+    targetLabel: school.name,
+    schoolId: school.id,
+  });
+
   revalidatePath("/superadmin/schools");
 }
 
 export async function updateSchool(schoolId: string, formData: FormData) {
-  await assertSuperadmin();
+  const { userId, userName } = await assertSuperadmin();
   const admin = createAdminClient();
 
   const schoolName = String(formData.get("schoolName") || "").trim();
@@ -90,6 +104,17 @@ export async function updateSchool(schoolId: string, formData: FormData) {
     .eq("id", schoolId);
   if (error) throw new Error(error.message);
 
+  await logAudit({
+    actorId: userId,
+    actorName: userName,
+    actorRole: "superadmin",
+    action: "school_updated",
+    targetType: "school",
+    targetId: schoolId,
+    targetLabel: schoolName,
+    schoolId,
+  });
+
   revalidatePath("/superadmin/schools");
 }
 
@@ -97,12 +122,12 @@ export async function updateSchoolAdmin(
   adminUserId: string,
   formData: FormData
 ) {
-  await assertSuperadmin();
+  const { userId, userName } = await assertSuperadmin();
   const admin = createAdminClient();
 
   const { data: target } = await admin
     .from("profiles")
-    .select("id, role")
+    .select("id, role, school_id")
     .eq("id", adminUserId)
     .single();
   if (!target || target.role !== "school_admin") {
@@ -135,12 +160,106 @@ export async function updateSchoolAdmin(
     .eq("id", adminUserId);
   if (error) throw new Error(error.message);
 
+  await logAudit({
+    actorId: userId,
+    actorName: userName,
+    actorRole: "superadmin",
+    action: "school_admin_updated",
+    targetType: "profile",
+    targetId: adminUserId,
+    targetLabel: fullName,
+    schoolId: target.school_id,
+    details: { emailChanged: Boolean(newEmail), passwordChanged: Boolean(newPassword) },
+  });
+
+  revalidatePath("/superadmin/schools");
+}
+
+/** Requires the caller to have already re-authenticated client-side. */
+export async function getSchoolAdminEmail(adminUserId: string) {
+  const { userId, userName } = await assertSuperadmin();
+  const admin = createAdminClient();
+
+  const { data: target } = await admin
+    .from("profiles")
+    .select("role, school_id, full_name")
+    .eq("id", adminUserId)
+    .single();
+  if (!target || target.role !== "school_admin") {
+    throw new Error("School Admin login not found.");
+  }
+
+  const { data: authUser, error } = await admin.auth.admin.getUserById(adminUserId);
+  if (error || !authUser.user) throw new Error("Could not load this login.");
+
+  await logAudit({
+    actorId: userId,
+    actorName: userName,
+    actorRole: "superadmin",
+    action: "credential_viewed",
+    targetType: "profile",
+    targetId: adminUserId,
+    targetLabel: target.full_name,
+    schoolId: target.school_id,
+  });
+
+  return { email: authUser.user.email ?? null };
+}
+
+export async function resetSchoolAdminCredentials(
+  adminUserId: string,
+  formData: FormData
+) {
+  const { userId, userName } = await assertSuperadmin();
+  const admin = createAdminClient();
+
+  const { data: target } = await admin
+    .from("profiles")
+    .select("role, school_id, full_name")
+    .eq("id", adminUserId)
+    .single();
+  if (!target || target.role !== "school_admin") {
+    throw new Error("School Admin login not found.");
+  }
+
+  const newEmail = String(formData.get("newEmail") || "").trim();
+  const newPassword = String(formData.get("newPassword") || "");
+
+  if (!newEmail && !newPassword) return; // nothing to change
+  if (newPassword && newPassword.length < 8) {
+    throw new Error("New password must be at least 8 characters.");
+  }
+
+  const { error } = await admin.auth.admin.updateUserById(adminUserId, {
+    ...(newEmail ? { email: newEmail } : {}),
+    ...(newPassword ? { password: newPassword } : {}),
+  });
+  if (error) throw new Error(error.message);
+
+  await logAudit({
+    actorId: userId,
+    actorName: userName,
+    actorRole: "superadmin",
+    action: "credential_reset",
+    targetType: "profile",
+    targetId: adminUserId,
+    targetLabel: target.full_name,
+    schoolId: target.school_id,
+    details: { emailChanged: Boolean(newEmail), passwordChanged: Boolean(newPassword) },
+  });
+
   revalidatePath("/superadmin/schools");
 }
 
 export async function deleteSchool(schoolId: string) {
-  await assertSuperadmin();
+  const { userId, userName } = await assertSuperadmin();
   const admin = createAdminClient();
+
+  const { data: school } = await admin
+    .from("schools")
+    .select("name")
+    .eq("id", schoolId)
+    .single();
 
   // Grab every login tied to this school so we can remove the auth users too
   // (deleting the school cascades the profile rows, but not the auth.users
@@ -156,6 +275,16 @@ export async function deleteSchool(schoolId: string) {
   for (const p of relatedProfiles ?? []) {
     await admin.auth.admin.deleteUser(p.id as string);
   }
+
+  await logAudit({
+    actorId: userId,
+    actorName: userName,
+    actorRole: "superadmin",
+    action: "school_deleted",
+    targetType: "school",
+    targetId: schoolId,
+    targetLabel: school?.name,
+  });
 
   revalidatePath("/superadmin/schools");
 }

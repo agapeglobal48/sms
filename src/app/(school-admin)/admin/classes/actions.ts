@@ -83,3 +83,46 @@ export async function deleteClass(classId: string) {
 
   revalidatePath("/admin/classes");
 }
+
+export async function addSubjectAssignment(classId: string, formData: FormData) {
+  const { supabase, schoolId } = await requireSchoolAdmin();
+
+  const subject = String(formData.get("subject") || "").trim();
+  const teacherId = String(formData.get("teacherId") || "");
+
+  if (!subject || !teacherId) {
+    throw new Error("Subject and teacher are both required.");
+  }
+
+  // Confirm the class actually belongs to this school before writing.
+  const { data: klass } = await supabase
+    .from("classes")
+    .select("id")
+    .eq("id", classId)
+    .eq("school_id", schoolId)
+    .single();
+  if (!klass) throw new Error("Class not found in your school.");
+
+  const { error } = await supabase.from("subject_assignments").upsert(
+    { school_id: schoolId, class_id: classId, subject, teacher_id: teacherId },
+    { onConflict: "class_id,subject" }
+  );
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/classes");
+  revalidatePath("/teacher/classes");
+}
+
+export async function removeSubjectAssignment(assignmentId: string) {
+  const { supabase, schoolId } = await requireSchoolAdmin();
+
+  const { error } = await supabase
+    .from("subject_assignments")
+    .delete()
+    .eq("id", assignmentId)
+    .eq("school_id", schoolId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/classes");
+  revalidatePath("/teacher/classes");
+}

@@ -40,6 +40,18 @@ export default function FundingBillsClient({
 
   const totalAllocated = funding.reduce((sum, f) => sum + f.amount, 0);
   const totalSpent = bills.reduce((sum, b) => sum + b.amount, 0);
+  const remaining = totalAllocated - totalSpent;
+  const utilization = totalAllocated > 0 ? Math.round((totalSpent / totalAllocated) * 100) : null;
+
+  const spentByFundingId = new Map<string, number>();
+  let unlinkedSpent = 0;
+  for (const b of bills) {
+    if (b.funding_id) {
+      spentByFundingId.set(b.funding_id, (spentByFundingId.get(b.funding_id) ?? 0) + b.amount);
+    } else {
+      unlinkedSpent += b.amount;
+    }
+  }
 
   function handleSchoolChange(newSchoolId: string) {
     router.push(`/ams/funding-bills?schoolId=${newSchoolId}`);
@@ -117,7 +129,7 @@ export default function FundingBillsClient({
         </div>
       </div>
 
-      <div className="flex gap-6 text-sm">
+      <div className="flex gap-6 text-sm flex-wrap">
         <p>
           <span className="text-muted">Total allocated: </span>
           <span className="font-medium text-ink">
@@ -128,6 +140,24 @@ export default function FundingBillsClient({
           <span className="text-muted">Total spent (bills): </span>
           <span className="font-medium text-ink">
             Rs. {totalSpent.toLocaleString()}
+          </span>
+        </p>
+        <p>
+          <span className="text-muted">Remaining: </span>
+          <span className={remaining < 0 ? "font-medium text-danger" : "font-medium text-ink"}>
+            Rs. {remaining.toLocaleString()}
+          </span>
+        </p>
+        <p>
+          <span className="text-muted">Utilization: </span>
+          <span
+            className={
+              utilization !== null && utilization > 100
+                ? "font-medium text-danger"
+                : "font-medium text-ink"
+            }
+          >
+            {utilization !== null ? `${utilization}%` : "—"}
           </span>
         </p>
       </div>
@@ -254,19 +284,35 @@ export default function FundingBillsClient({
               No funding allocated to this school yet.
             </p>
           )}
-          {funding.map((f) => (
-            <div key={f.id} className="flex items-center justify-between p-4">
-              <div>
-                <p className="font-medium text-ink">
-                  Rs. {f.amount.toLocaleString()}
+          {funding.map((f) => {
+            const spent = spentByFundingId.get(f.id) ?? 0;
+            const left = f.amount - spent;
+            return (
+              <div key={f.id} className="flex items-center justify-between p-4">
+                <div>
+                  <p className="font-medium text-ink">
+                    Rs. {f.amount.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-muted">{f.purpose ?? "—"}</p>
+                  <p className="text-xs text-muted">
+                    Spent: Rs. {spent.toLocaleString()} · Remaining:{" "}
+                    <span className={left < 0 ? "text-danger" : ""}>
+                      Rs. {left.toLocaleString()}
+                    </span>
+                  </p>
+                </div>
+                <p className="text-xs text-muted">
+                  {new Date(f.allocated_at).toLocaleDateString()}
                 </p>
-                <p className="text-sm text-muted">{f.purpose ?? "—"}</p>
               </div>
-              <p className="text-xs text-muted">
-                {new Date(f.allocated_at).toLocaleDateString()}
-              </p>
-            </div>
-          ))}
+            );
+          })}
+          {unlinkedSpent > 0 && (
+            <p className="p-4 text-xs text-muted">
+              Rs. {unlinkedSpent.toLocaleString()} in bills aren&apos;t linked to a specific
+              allocation.
+            </p>
+          )}
         </div>
       </div>
 

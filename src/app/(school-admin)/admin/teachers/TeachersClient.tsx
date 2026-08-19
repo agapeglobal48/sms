@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createTeacher, updateTeacher, deleteTeacher } from "./actions";
+import {
+  createTeacher,
+  updateTeacher,
+  deleteTeacher,
+  getTeacherEmail,
+  resetTeacherCredentials,
+} from "./actions";
+import ManageLoginModal from "@/components/shared/ManageLoginModal";
 
 type Teacher = {
   id: string;
@@ -15,6 +22,7 @@ export default function TeachersClient({ teachers }: { teachers: Teacher[] }) {
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [managingId, setManagingId] = useState<string | null>(null);
 
   function handleCreate(formData: FormData) {
     setError(null);
@@ -113,7 +121,7 @@ export default function TeachersClient({ teachers }: { teachers: Teacher[] }) {
           </p>
         )}
         {teachers.map((t) => (
-          <div key={t.id} className="flex items-center justify-between p-4">
+          <div key={t.id} className="flex items-center justify-between p-4 flex-wrap gap-2">
             <div>
               <p className="font-medium text-ink">{t.full_name}</p>
               <p className="text-sm text-muted">
@@ -128,6 +136,12 @@ export default function TeachersClient({ teachers }: { teachers: Teacher[] }) {
                 className="text-sm text-brand-light hover:text-brand font-medium"
               >
                 Edit
+              </button>
+              <button
+                onClick={() => setManagingId(t.id)}
+                className="text-sm text-brand-light hover:text-brand font-medium"
+              >
+                Manage login
               </button>
               <button
                 onClick={() => handleDelete(t.id, t.full_name)}
@@ -161,20 +175,6 @@ export default function TeachersClient({ teachers }: { teachers: Teacher[] }) {
                 defaultValue={teachers.find((t) => t.id === editingId)?.phone ?? ""}
               />
             </div>
-            <hr className="border-line" />
-            <p className="text-sm text-muted">
-              Leave the fields below blank to keep their current email/password.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="New email" name="newEmail" type="email" />
-              <Field
-                label="New password"
-                name="newPassword"
-                type="password"
-                minLength={8}
-                helper="At least 8 characters if changing"
-              />
-            </div>
             <button
               type="submit"
               disabled={isPending}
@@ -184,6 +184,16 @@ export default function TeachersClient({ teachers }: { teachers: Teacher[] }) {
             </button>
           </form>
         </EditModal>
+      )}
+
+      {managingId && (
+        <ManageLoginModal
+          onClose={() => setManagingId(null)}
+          targetId={managingId}
+          targetLabel={teachers.find((t) => t.id === managingId)?.full_name ?? ""}
+          getEmail={getTeacherEmail}
+          resetCredentials={resetTeacherCredentials}
+        />
       )}
     </div>
   );

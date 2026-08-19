@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Sidebar, { type SidebarLink } from "./Sidebar";
 import Header from "./Header";
+import OfflineBanner from "./OfflineBanner";
 
 export default function AppShell({
   sectionLabel,
@@ -21,18 +22,23 @@ export default function AppShell({
 
   return (
     <div className="min-h-screen bg-paper">
-      <Sidebar
-        sectionLabel={sectionLabel}
-        links={links}
-        mobileOpen={mobileOpen}
-        onClose={() => setMobileOpen(false)}
-      />
-      <div className="md:pl-64">
-        <Header
-          welcomeName={welcomeName}
-          subLabel={subLabel}
-          onMenuClick={() => setMobileOpen(true)}
+      <div className="print:hidden">
+        <Sidebar
+          sectionLabel={sectionLabel}
+          links={links}
+          mobileOpen={mobileOpen}
+          onClose={() => setMobileOpen(false)}
         />
+      </div>
+      <div className="md:pl-64 print:pl-0">
+        <div className="print:hidden">
+          <Header
+            welcomeName={welcomeName}
+            subLabel={subLabel}
+            onMenuClick={() => setMobileOpen(true)}
+          />
+          <OfflineBanner />
+        </div>
         <main>{children}</main>
       </div>
     </div>

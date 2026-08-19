@@ -16,23 +16,33 @@ export default async function ClassesPage() {
 
   const schoolId = profile?.school_id;
 
-  const [{ data: classes }, { data: teachers }] = await Promise.all([
-    supabase
-      .from("classes")
-      .select("id, grade, section, name, teacher_id")
-      .eq("school_id", schoolId!)
-      .order("grade", { ascending: true }),
-    supabase
-      .from("profiles")
-      .select("id, full_name")
-      .eq("school_id", schoolId!)
-      .eq("role", "teacher")
-      .order("full_name", { ascending: true }),
-  ]);
+  const [{ data: classes }, { data: teachers }, { data: subjectAssignments }] =
+    await Promise.all([
+      supabase
+        .from("classes")
+        .select("id, grade, section, name, teacher_id")
+        .eq("school_id", schoolId!)
+        .order("grade", { ascending: true }),
+      supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("school_id", schoolId!)
+        .eq("role", "teacher")
+        .order("full_name", { ascending: true }),
+      supabase
+        .from("subject_assignments")
+        .select("id, class_id, subject, teacher_id")
+        .eq("school_id", schoolId!)
+        .order("subject", { ascending: true }),
+    ]);
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <ClassesClient classes={classes ?? []} teachers={teachers ?? []} />
+      <ClassesClient
+        classes={classes ?? []}
+        teachers={teachers ?? []}
+        subjectAssignments={subjectAssignments ?? []}
+      />
     </div>
   );
 }
